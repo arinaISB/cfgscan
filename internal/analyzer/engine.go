@@ -38,11 +38,13 @@ func (e Engine) Analyze(ctx context.Context, document parser.Document) ([]Proble
 		problems = append(problems, findings...)
 	}
 
-	sort.Slice(problems, func(i, j int) bool {
-		if problems[i].Path != problems[j].Path {
-			return problems[i].Path < problems[j].Path
-		}
-		return problems[i].RuleID < problems[j].RuleID
-	})
+	sort.Slice(
+		problems, func(i, j int) bool {
+			if problems[i].Path != problems[j].Path {
+				return problems[i].Path < problems[j].Path
+			}
+			return problems[i].RuleID < problems[j].RuleID
+		},
+	)
 	return problems, nil
 }

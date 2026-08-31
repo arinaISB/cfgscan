@@ -15,7 +15,10 @@ import (
 )
 
 func TestAnalyzeReturnsEmptyProblemsForSafeConfiguration(t *testing.T) {
-	response := perform(t, app.New(analyzer.NewEngine(analyzer.DefaultRules()...)), http.MethodPost, "/v1/analyze", `{"database":{"host":"127.0.0.1"}}`)
+	response := perform(
+		t, app.New(analyzer.NewEngine(analyzer.DefaultRules()...)), http.MethodPost, "/v1/analyze",
+		`{"database":{"host":"127.0.0.1"}}`,
+	)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.Code)
 	}
@@ -33,40 +36,49 @@ func TestAnalyzeReturnsFindingsForJSONAndYAML(t *testing.T) {
 		`{"database":{"password":"literal"}}`,
 		"database:\n  password: literal\n",
 	} {
-		t.Run(input[:1], func(t *testing.T) {
-			response := perform(t, app.New(analyzer.NewEngine(analyzer.DefaultRules()...)), http.MethodPost, "/v1/analyze", input)
-			if response.Code != http.StatusOK {
-				t.Fatalf("status = %d, want 200", response.Code)
-			}
-			var body struct {
-				Problems []analyzer.Problem `json:"problems"`
-			}
-			decodeBody(t, response, &body)
-			if len(body.Problems) != 1 {
-				t.Fatalf("problems = %#v, want one finding", body.Problems)
-			}
-			problem := body.Problems[0]
-			if problem.Source != "request" || problem.RuleID != "plaintext-password" || problem.Severity != analyzer.SeverityHigh || problem.Path != "database.password" {
-				t.Fatalf("problem = %#v, want request plaintext-password finding", problem)
-			}
-		})
+		t.Run(
+			input[:1], func(t *testing.T) {
+				response := perform(
+					t, app.New(analyzer.NewEngine(analyzer.DefaultRules()...)), http.MethodPost, "/v1/analyze", input,
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200", response.Code)
+				}
+				var body struct {
+					Problems []analyzer.Problem `json:"problems"`
+				}
+				decodeBody(t, response, &body)
+				if len(body.Problems) != 1 {
+					t.Fatalf("problems = %#v, want one finding", body.Problems)
+				}
+				problem := body.Problems[0]
+				if problem.Source != "request" || problem.RuleID != "plaintext-password" || problem.Severity != analyzer.SeverityHigh || problem.Path != "database.password" {
+					t.Fatalf("problem = %#v, want request plaintext-password finding", problem)
+				}
+			},
+		)
 	}
 }
 
 func TestAnalyzeRejectsInvalidBody(t *testing.T) {
 	for _, body := range []string{"database: [", "", " \n\t "} {
-		t.Run("invalid request", func(t *testing.T) {
-			response := perform(t, app.New(analyzer.NewEngine()), http.MethodPost, "/v1/analyze", body)
-			if response.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, want 400", response.Code)
-			}
-			assertErrorBody(t, response)
-		})
+		t.Run(
+			"invalid request", func(t *testing.T) {
+				response := perform(t, app.New(analyzer.NewEngine()), http.MethodPost, "/v1/analyze", body)
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400", response.Code)
+				}
+				assertErrorBody(t, response)
+			},
+		)
 	}
 }
 
 func TestAnalyzeRejectsBodyOverLimit(t *testing.T) {
-	response := perform(t, app.New(analyzer.NewEngine()), http.MethodPost, "/v1/analyze", string(bytes.Repeat([]byte("a"), int(maxRequestBodyBytes+1))))
+	response := perform(
+		t, app.New(analyzer.NewEngine()), http.MethodPost, "/v1/analyze",
+		string(bytes.Repeat([]byte("a"), int(maxRequestBodyBytes+1))),
+	)
 	if response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413", response.Code)
 	}

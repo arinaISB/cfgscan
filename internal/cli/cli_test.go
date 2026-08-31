@@ -18,7 +18,10 @@ import (
 
 func TestRunRequiresPathWithoutStdin(t *testing.T) {
 	var stderr bytes.Buffer
-	code := Run(context.Background(), nil, strings.NewReader(""), io.Discard, &stderr, app.New(analyzer.NewEngine()), unusedOpenFile)
+	code := Run(
+		context.Background(), nil, strings.NewReader(""), io.Discard, &stderr, app.New(analyzer.NewEngine()),
+		unusedOpenFile,
+	)
 
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
@@ -35,22 +38,33 @@ func TestParseFlags(t *testing.T) {
 		want options
 	}{
 		{name: "short silent", args: []string{"-s", "config.yaml"}, want: options{silent: true, path: "config.yaml"}},
-		{name: "long silent", args: []string{"--silent", "config.yaml"}, want: options{silent: true, path: "config.yaml"}},
+		{
+			name: "long silent", args: []string{"--silent", "config.yaml"},
+			want: options{silent: true, path: "config.yaml"},
+		},
 		{name: "stdin", args: []string{"--stdin"}, want: options{stdin: true}},
-		{name: "HTTP server", args: []string{"--http-addr", ":8080"}, want: options{httpAddr: ":8080", httpServer: true}},
-		{name: "gRPC server", args: []string{"--grpc-addr", ":9090"}, want: options{grpcAddr: ":9090", grpcServer: true}},
+		{
+			name: "HTTP server", args: []string{"--http-addr", ":8080"},
+			want: options{httpAddr: ":8080", httpServer: true},
+		},
+		{
+			name: "gRPC server", args: []string{"--grpc-addr", ":9090"},
+			want: options{grpcAddr: ":9090", grpcServer: true},
+		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := parse(test.args)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != test.want {
-				t.Fatalf("parse(%q) = %#v, want %#v", test.args, got, test.want)
-			}
-		})
+		t.Run(
+			test.name, func(t *testing.T) {
+				got, err := parse(test.args)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got != test.want {
+					t.Fatalf("parse(%q) = %#v, want %#v", test.args, got, test.want)
+				}
+			},
+		)
 	}
 }
 
@@ -83,7 +97,10 @@ func TestParseRejectsHTTPServerCombinations(t *testing.T) {
 
 func TestRunReadsStdin(t *testing.T) {
 	var stderr bytes.Buffer
-	code := Run(context.Background(), []string{"--stdin"}, strings.NewReader("valid: true\n"), io.Discard, &stderr, app.New(analyzer.NewEngine()), unusedOpenFile)
+	code := Run(
+		context.Background(), []string{"--stdin"}, strings.NewReader("valid: true\n"), io.Discard, &stderr,
+		app.New(analyzer.NewEngine()), unusedOpenFile,
+	)
 
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -99,10 +116,15 @@ func TestRunOpensConfigurationFile(t *testing.T) {
 	}
 	openFile := func(path string) (input.Source, io.Closer, error) {
 		openedPath = path
-		return input.Source{Name: path, Reader: strings.NewReader("valid: true\n")}, io.NopCloser(strings.NewReader("")), nil
+		return input.Source{
+			Name: path, Reader: strings.NewReader("valid: true\n"),
+		}, io.NopCloser(strings.NewReader("")), nil
 	}
 
-	code := Run(context.Background(), []string{path}, strings.NewReader(""), io.Discard, &stderr, app.New(analyzer.NewEngine()), openFile)
+	code := Run(
+		context.Background(), []string{path}, strings.NewReader(""), io.Discard, &stderr, app.New(analyzer.NewEngine()),
+		openFile,
+	)
 
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -130,12 +152,17 @@ func TestRunScansDirectoryInOrderAndSetsSources(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	code := Run(context.Background(), []string{"--silent", dir}, strings.NewReader(""), &stdout, &stderr, app.New(analyzer.NewEngine(analyzer.DefaultRules()...)), input.OpenFile)
+	code := Run(
+		context.Background(), []string{"--silent", dir}, strings.NewReader(""), &stdout, &stderr,
+		app.New(analyzer.NewEngine(analyzer.DefaultRules()...)), input.OpenFile,
+	)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
 	}
 	output := stdout.String()
-	if !strings.Contains(output, first+": HIGH [plaintext-password]") || !strings.Contains(output, second+": HIGH [plaintext-password]") {
+	if !strings.Contains(output, first+": HIGH [plaintext-password]") || !strings.Contains(
+		output, second+": HIGH [plaintext-password]",
+	) {
 		t.Fatalf("output = %q, want findings with both sources", output)
 	}
 	if strings.Contains(output, "ignored.txt") || strings.Index(output, first+":") > strings.Index(output, second+":") {
@@ -149,7 +176,10 @@ func TestRunDirectoryWithoutSupportedConfigurationsSucceeds(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	code := Run(context.Background(), []string{dir}, strings.NewReader(""), &stdout, &stderr, app.New(analyzer.NewEngine()), input.OpenFile)
+	code := Run(
+		context.Background(), []string{dir}, strings.NewReader(""), &stdout, &stderr, app.New(analyzer.NewEngine()),
+		input.OpenFile,
+	)
 	if code != 0 || stdout.Len() != 0 || stderr.Len() != 0 {
 		t.Fatalf("exit code = %d, stdout = %q, stderr = %q", code, stdout.String(), stderr.String())
 	}
@@ -158,7 +188,10 @@ func TestRunDirectoryWithoutSupportedConfigurationsSucceeds(t *testing.T) {
 func TestRunReportsInputReadError(t *testing.T) {
 	var stderr bytes.Buffer
 	brokenInput := errReader{err: errors.New("read failed")}
-	code := Run(context.Background(), []string{"--stdin"}, brokenInput, io.Discard, &stderr, app.New(analyzer.NewEngine()), unusedOpenFile)
+	code := Run(
+		context.Background(), []string{"--stdin"}, brokenInput, io.Discard, &stderr, app.New(analyzer.NewEngine()),
+		unusedOpenFile,
+	)
 
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
@@ -177,24 +210,65 @@ func TestRunReturnsFindingExitCodeUnlessSilent(t *testing.T) {
 		{name: "normal", args: []string{"--stdin"}, want: 1},
 		{name: "silent", args: []string{"--stdin", "--silent"}, want: 0},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-			service := app.New(staticAnalyzer{problems: []analyzer.Problem{{
+		t.Run(
+			test.name, func(t *testing.T) {
+				var stdout, stderr bytes.Buffer
+				service := app.New(
+					staticAnalyzer{
+						problems: []analyzer.Problem{
+							{
+								RuleID:         "test-rule",
+								Severity:       analyzer.SeverityHigh,
+								Path:           "service.password",
+								Message:        "test finding",
+								Recommendation: "fix it",
+							},
+						},
+					},
+				)
+
+				code := Run(
+					context.Background(), test.args, strings.NewReader("valid: true\n"), &stdout, &stderr, service,
+					unusedOpenFile,
+				)
+				if code != test.want {
+					t.Fatalf("exit code = %d, want %d; stderr = %q", code, test.want, stderr.String())
+				}
+				if !strings.Contains(
+					stdout.String(), "stdin: HIGH [test-rule] service.password: test finding Recommendation: fix it",
+				) {
+					t.Fatalf("output = %q, want formatted finding", stdout.String())
+				}
+			},
+		)
+	}
+}
+
+func TestRunReturnsFailureWhenWritingFindingsFails(t *testing.T) {
+	var stderr bytes.Buffer
+	writeErr := errors.New("stdout failed")
+	service := app.New(
+		staticAnalyzer{
+			problems: []analyzer.Problem{{
 				RuleID:         "test-rule",
 				Severity:       analyzer.SeverityHigh,
 				Path:           "service.password",
 				Message:        "test finding",
 				Recommendation: "fix it",
-			}}})
+			}},
+		},
+	)
 
-			code := Run(context.Background(), test.args, strings.NewReader("valid: true\n"), &stdout, &stderr, service, unusedOpenFile)
-			if code != test.want {
-				t.Fatalf("exit code = %d, want %d; stderr = %q", code, test.want, stderr.String())
-			}
-			if !strings.Contains(stdout.String(), "stdin: HIGH [test-rule] service.password: test finding Recommendation: fix it") {
-				t.Fatalf("output = %q, want formatted finding", stdout.String())
-			}
-		})
+	code := Run(
+		context.Background(), []string{"--stdin", "--silent"}, strings.NewReader("valid: true\n"), errWriter{writeErr},
+		&stderr, service, unusedOpenFile,
+	)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1; stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), writeErr.Error()) {
+		t.Fatalf("stderr = %q, want write error", stderr.String())
 	}
 }
 
@@ -205,6 +279,10 @@ func unusedOpenFile(string) (input.Source, io.Closer, error) {
 type errReader struct{ err error }
 
 func (r errReader) Read([]byte) (int, error) { return 0, r.err }
+
+type errWriter struct{ err error }
+
+func (w errWriter) Write([]byte) (int, error) { return 0, w.err }
 
 type staticAnalyzer struct {
 	problems []analyzer.Problem

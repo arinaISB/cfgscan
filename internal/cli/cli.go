@@ -36,7 +36,10 @@ type options struct {
 type openFileFunc func(string) (input.Source, io.Closer, error)
 
 // Run executes the command-line application and returns its process exit code.
-func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, service app.Service, openFile openFileFunc) int {
+func Run(
+	ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, service app.Service,
+	openFile openFileFunc,
+) int {
 	opts, err := parse(args)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -71,7 +74,14 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			fmt.Fprintf(stderr, "analyze stdin: %v\n", err)
 			return 1
 		}
-		return writeProblems(stdout, problems, "stdin", opts.silent)
+		if err := writeProblems(stdout, problems, "stdin"); err != nil {
+			fmt.Fprintf(stderr, "write findings: %v\n", err)
+			return 1
+		}
+		if len(problems) > 0 && !opts.silent {
+			return 1
+		}
+		return 0
 	}
 
 	paths, err := filescan.Files(opts.path)
@@ -109,21 +119,30 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			allProblems = append(allProblems, *permission)
 		}
 	}
-	return writeProblems(stdout, allProblems, "", opts.silent)
+	if err := writeProblems(stdout, allProblems, ""); err != nil {
+		fmt.Fprintf(stderr, "write findings: %v\n", err)
+		return 1
+	}
+	if len(allProblems) > 0 && !opts.silent {
+		return 1
+	}
+	return 0
 }
 
-func writeProblems(stdout io.Writer, problems []analyzer.Problem, defaultSource string, silent bool) int {
+func writeProblems(stdout io.Writer, problems []analyzer.Problem, defaultSource string) error {
 	for _, problem := range problems {
 		source := problem.Source
 		if source == "" {
 			source = defaultSource
 		}
-		fmt.Fprintf(stdout, "%s: %s [%s] %s: %s Recommendation: %s\n", source, problem.Severity, problem.RuleID, problem.Path, problem.Message, problem.Recommendation)
+		if _, err := fmt.Fprintf(
+			stdout, "%s: %s [%s] %s: %s Recommendation: %s\n", source, problem.Severity, problem.RuleID, problem.Path,
+			problem.Message, problem.Recommendation,
+		); err != nil {
+			return err
+		}
 	}
-	if len(problems) > 0 && !silent {
-		return 1
-	}
-	return 0
+	return nil
 }
 
 func parse(args []string) (options, error) {
@@ -139,14 +158,16 @@ func parse(args []string) (options, error) {
 		return options{}, err
 	}
 
-	flags.Visit(func(f *flag.Flag) {
-		if f.Name == "http-addr" {
-			opts.httpServer = true
-		}
-		if f.Name == "grpc-addr" {
-			opts.grpcServer = true
-		}
-	})
+	flags.Visit(
+		func(f *flag.Flag) {
+			if f.Name == "http-addr" {
+				opts.httpServer = true
+			}
+			if f.Name == "grpc-addr" {
+				opts.grpcServer = true
+			}
+		},
+	)
 	remaining := flags.Args()
 	if opts.httpServer && opts.grpcServer {
 		return options{}, errors.New("--http-addr cannot be used with --grpc-addr")

@@ -32,18 +32,20 @@ type DebugLoggingRule struct{}
 func (DebugLoggingRule) ID() string { return debugLoggingRuleID }
 
 func (DebugLoggingRule) Check(_ context.Context, document parser.Document) ([]Problem, error) {
-	return findings(document, debugLoggingRuleID, func(node Node) *Problem {
-		value, ok := node.Value.(string)
-		if !ok || !isLoggingLevelNode(node) || !strings.EqualFold(strings.TrimSpace(value), "debug") {
-			return nil
-		}
-		return &Problem{
-			Severity:       SeverityLow,
-			Path:           node.Path,
-			Message:        "debug logging is enabled",
-			Recommendation: "Use info or a higher log level in production.",
-		}
-	})
+	return findings(
+		document, debugLoggingRuleID, func(node Node) *Problem {
+			value, ok := node.Value.(string)
+			if !ok || !isLoggingLevelNode(node) || !strings.EqualFold(strings.TrimSpace(value), "debug") {
+				return nil
+			}
+			return &Problem{
+				Severity:       SeverityLow,
+				Path:           node.Path,
+				Message:        "debug logging is enabled",
+				Recommendation: "Use info or a higher log level in production.",
+			}
+		},
+	)
 }
 
 // PlaintextPasswordRule detects literal values in password-like fields.
@@ -52,18 +54,20 @@ type PlaintextPasswordRule struct{}
 func (PlaintextPasswordRule) ID() string { return plaintextPasswordRuleID }
 
 func (PlaintextPasswordRule) Check(_ context.Context, document parser.Document) ([]Problem, error) {
-	return findings(document, plaintextPasswordRuleID, func(node Node) *Problem {
-		value, ok := node.Value.(string)
-		if !ok || !isSensitiveKey(node.Key) || isExternalSecretReference(value) || strings.TrimSpace(value) == "" {
-			return nil
-		}
-		return &Problem{
-			Severity:       SeverityHigh,
-			Path:           node.Path,
-			Message:        "a literal secret is stored in the configuration",
-			Recommendation: "Load this value from a secret manager or an environment variable.",
-		}
-	})
+	return findings(
+		document, plaintextPasswordRuleID, func(node Node) *Problem {
+			value, ok := node.Value.(string)
+			if !ok || !isSensitiveKey(node.Key) || isExternalSecretReference(value) || strings.TrimSpace(value) == "" {
+				return nil
+			}
+			return &Problem{
+				Severity:       SeverityHigh,
+				Path:           node.Path,
+				Message:        "a literal secret is stored in the configuration",
+				Recommendation: "Load this value from a secret manager or an environment variable.",
+			}
+		},
+	)
 }
 
 // UnrestrictedBindRule detects services bound to all IPv4 interfaces.
@@ -72,18 +76,20 @@ type UnrestrictedBindRule struct{}
 func (UnrestrictedBindRule) ID() string { return unrestrictedBindRuleID }
 
 func (UnrestrictedBindRule) Check(_ context.Context, document parser.Document) ([]Problem, error) {
-	return findings(document, unrestrictedBindRuleID, func(node Node) *Problem {
-		value, ok := node.Value.(string)
-		if !ok || !isBindKey(node.Key) || !isUnrestrictedAddress(value) {
-			return nil
-		}
-		return &Problem{
-			Severity:       SeverityMedium,
-			Path:           node.Path,
-			Message:        "service is bound to all network interfaces",
-			Recommendation: "Bind to a specific private interface or restrict access with a firewall.",
-		}
-	})
+	return findings(
+		document, unrestrictedBindRuleID, func(node Node) *Problem {
+			value, ok := node.Value.(string)
+			if !ok || !isBindKey(node.Key) || !isUnrestrictedAddress(value) {
+				return nil
+			}
+			return &Problem{
+				Severity:       SeverityMedium,
+				Path:           node.Path,
+				Message:        "service is bound to all network interfaces",
+				Recommendation: "Bind to a specific private interface or restrict access with a firewall.",
+			}
+		},
+	)
 }
 
 // DisabledTLSRule detects explicit settings that disable TLS protection.
@@ -92,18 +98,20 @@ type DisabledTLSRule struct{}
 func (DisabledTLSRule) ID() string { return disabledTLSRuleID }
 
 func (DisabledTLSRule) Check(_ context.Context, document parser.Document) ([]Problem, error) {
-	return findings(document, disabledTLSRuleID, func(node Node) *Problem {
-		value, ok := node.Value.(bool)
-		if !ok || !isDisabledTLSSetting(node.Key, value) {
-			return nil
-		}
-		return &Problem{
-			Severity:       SeverityHigh,
-			Path:           node.Path,
-			Message:        "TLS certificate verification is disabled",
-			Recommendation: "Enable TLS and certificate verification.",
-		}
-	})
+	return findings(
+		document, disabledTLSRuleID, func(node Node) *Problem {
+			value, ok := node.Value.(bool)
+			if !ok || !isDisabledTLSSetting(node.Key, value) {
+				return nil
+			}
+			return &Problem{
+				Severity:       SeverityHigh,
+				Path:           node.Path,
+				Message:        "TLS certificate verification is disabled",
+				Recommendation: "Enable TLS and certificate verification.",
+			}
+		},
+	)
 }
 
 // WeakAlgorithmRule detects known weak cryptographic algorithms.
@@ -112,29 +120,33 @@ type WeakAlgorithmRule struct{}
 func (WeakAlgorithmRule) ID() string { return weakAlgorithmRuleID }
 
 func (WeakAlgorithmRule) Check(_ context.Context, document parser.Document) ([]Problem, error) {
-	return findings(document, weakAlgorithmRuleID, func(node Node) *Problem {
-		value, ok := node.Value.(string)
-		if !ok || !isAlgorithmKey(node.Key) || !containsWeakAlgorithm(value) {
-			return nil
-		}
-		return &Problem{
-			Severity:       SeverityHigh,
-			Path:           node.Path,
-			Message:        "a weak cryptographic algorithm is configured",
-			Recommendation: "Use a modern algorithm such as SHA-256, AES-GCM, or an approved equivalent.",
-		}
-	})
+	return findings(
+		document, weakAlgorithmRuleID, func(node Node) *Problem {
+			value, ok := node.Value.(string)
+			if !ok || !isAlgorithmKey(node.Key) || !containsWeakAlgorithm(value) {
+				return nil
+			}
+			return &Problem{
+				Severity:       SeverityHigh,
+				Path:           node.Path,
+				Message:        "a weak cryptographic algorithm is configured",
+				Recommendation: "Use a modern algorithm such as SHA-256, AES-GCM, or an approved equivalent.",
+			}
+		},
+	)
 }
 
 func findings(document parser.Document, ruleID string, match func(Node) *Problem) ([]Problem, error) {
 	problems := make([]Problem, 0)
-	err := Walk(document, func(node Node) error {
-		if problem := match(node); problem != nil {
-			problem.RuleID = ruleID
-			problems = append(problems, *problem)
-		}
-		return nil
-	})
+	err := Walk(
+		document, func(node Node) error {
+			if problem := match(node); problem != nil {
+				problem.RuleID = ruleID
+				problems = append(problems, *problem)
+			}
+			return nil
+		},
+	)
 	return problems, err
 }
 
@@ -214,9 +226,11 @@ func containsWeakAlgorithm(value string) bool {
 		strings.Contains(compact, "rc4") || strings.Contains(compact, "3des") {
 		return true
 	}
-	for _, token := range strings.FieldsFunc(value, func(character rune) bool {
-		return (character < 'a' || character > 'z') && (character < '0' || character > '9')
-	}) {
+	for _, token := range strings.FieldsFunc(
+		value, func(character rune) bool {
+			return (character < 'a' || character > 'z') && (character < '0' || character > '9')
+		},
+	) {
 		if token == "des" || token == "desede" || token == "tripledes" {
 			return true
 		}

@@ -81,26 +81,28 @@ func TestPermissionProblem(t *testing.T) {
 		{name: "restricted", mode: 0o600},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "config.yaml")
-			writeFile(t, path, "valid: true")
-			if err := os.Chmod(path, test.mode); err != nil {
-				t.Fatal(err)
-			}
-			problem, err := PermissionProblem(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if test.want == "" {
-				if problem != nil {
-					t.Fatalf("problem = %#v, want nil", problem)
+		t.Run(
+			test.name, func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "config.yaml")
+				writeFile(t, path, "valid: true")
+				if err := os.Chmod(path, test.mode); err != nil {
+					t.Fatal(err)
 				}
-				return
-			}
-			if problem == nil || problem.Severity != test.want || problem.RuleID != "insecure-file-permissions" || problem.Source != path {
-				t.Fatalf("problem = %#v", problem)
-			}
-		})
+				problem, err := PermissionProblem(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if test.want == "" {
+					if problem != nil {
+						t.Fatalf("problem = %#v, want nil", problem)
+					}
+					return
+				}
+				if problem == nil || problem.Severity != test.want || problem.RuleID != "insecure-file-permissions" || problem.Source != path {
+					t.Fatalf("problem = %#v", problem)
+				}
+			},
+		)
 	}
 }
 

@@ -25,48 +25,50 @@ type errorResponse struct {
 
 // NewHandler returns the HTTP API handler backed by service.
 func NewHandler(service app.Service) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/analyze" {
-			writeError(w, http.StatusNotFound, "not found")
-			return
-		}
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-			return
-		}
-
-		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-		data, err := io.ReadAll(r.Body)
-		if err != nil {
-			var maxBytesErr *http.MaxBytesError
-			if errors.As(err, &maxBytesErr) {
-				writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/v1/analyze" {
+				writeError(w, http.StatusNotFound, "not found")
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "read request body")
-			return
-		}
-		if len(strings.TrimSpace(string(data))) == 0 {
-			writeError(w, http.StatusBadRequest, "request body is empty")
-			return
-		}
-
-		problems, err := service.Analyze(r.Context(), bytes.NewReader(data))
-		if err != nil {
-			var parseErr *app.ParseError
-			if errors.As(err, &parseErr) {
-				writeError(w, http.StatusBadRequest, err.Error())
+			if r.Method != http.MethodPost {
+				w.Header().Set("Allow", http.MethodPost)
+				writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "analyze configuration")
-			return
-		}
-		for index := range problems {
-			problems[index].Source = "request"
-		}
-		writeJSON(w, http.StatusOK, response{Problems: problems})
-	})
+
+			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+			data, err := io.ReadAll(r.Body)
+			if err != nil {
+				var maxBytesErr *http.MaxBytesError
+				if errors.As(err, &maxBytesErr) {
+					writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
+					return
+				}
+				writeError(w, http.StatusInternalServerError, "read request body")
+				return
+			}
+			if len(strings.TrimSpace(string(data))) == 0 {
+				writeError(w, http.StatusBadRequest, "request body is empty")
+				return
+			}
+
+			problems, err := service.Analyze(r.Context(), bytes.NewReader(data))
+			if err != nil {
+				var parseErr *app.ParseError
+				if errors.As(err, &parseErr) {
+					writeError(w, http.StatusBadRequest, err.Error())
+					return
+				}
+				writeError(w, http.StatusInternalServerError, "analyze configuration")
+				return
+			}
+			for index := range problems {
+				problems[index].Source = "request"
+			}
+			writeJSON(w, http.StatusOK, response{Problems: problems})
+		},
+	)
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {

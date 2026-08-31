@@ -37,7 +37,9 @@ func NewScannerClient(cc grpc.ClientConnInterface) ScannerClient {
 	return &scannerClient{cc}
 }
 
-func (c *scannerClient) Analyze(ctx context.Context, in *AnalyzeRequest, opts ...grpc.CallOption) (*AnalyzeResponse, error) {
+func (c *scannerClient) Analyze(ctx context.Context, in *AnalyzeRequest, opts ...grpc.CallOption) (
+	*AnalyzeResponse, error,
+) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AnalyzeResponse)
 	err := c.cc.Invoke(ctx, Scanner_Analyze_FullMethodName, in, out, cOpts...)
@@ -86,7 +88,9 @@ func RegisterScannerServer(s grpc.ServiceRegistrar, srv ScannerServer) {
 	s.RegisterService(&Scanner_ServiceDesc, srv)
 }
 
-func _Scanner_Analyze_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Scanner_Analyze_Handler(
+	srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor,
+) (interface{}, error) {
 	in := new(AnalyzeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
