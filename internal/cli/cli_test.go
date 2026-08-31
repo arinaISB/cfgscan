@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -62,18 +64,65 @@ func TestRunReadsStdin(t *testing.T) {
 func TestRunOpensConfigurationFile(t *testing.T) {
 	var stderr bytes.Buffer
 	openedPath := ""
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("valid: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	openFile := func(path string) (input.Source, io.Closer, error) {
 		openedPath = path
 		return input.Source{Name: path, Reader: strings.NewReader("valid: true\n")}, io.NopCloser(strings.NewReader("")), nil
 	}
 
-	code := Run(context.Background(), []string{"config.yaml"}, strings.NewReader(""), io.Discard, &stderr, app.New(analyzer.NewEngine()), openFile)
+	code := Run(context.Background(), []string{path}, strings.NewReader(""), io.Discard, &stderr, app.New(analyzer.NewEngine()), openFile)
 
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
 	}
-	if openedPath != "config.yaml" {
-		t.Fatalf("opened path = %q, want %q", openedPath, "config.yaml")
+	if openedPath != path {
+		t.Fatalf("opened path = %q, want %q", openedPath, path)
+	}
+}
+
+func TestRunScansDirectoryInOrderAndSetsSources(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "a.yaml")
+	second := filepath.Join(dir, "nested", "b.json")
+	for path, contents := range map[string]string{
+		first:                             "database:\n  password: literal\n",
+		second:                            `{"database":{"password":"literal"}}`,
+		filepath.Join(dir, "ignored.txt"): "database:\n  password: literal\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"--silent", dir}, strings.NewReader(""), &stdout, &stderr, app.New(analyzer.NewEngine(analyzer.DefaultRules()...)), input.OpenFile)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, first+": HIGH [plaintext-password]") || !strings.Contains(output, second+": HIGH [plaintext-password]") {
+		t.Fatalf("output = %q, want findings with both sources", output)
+	}
+	if strings.Contains(output, "ignored.txt") || strings.Index(output, first+":") > strings.Index(output, second+":") {
+		t.Fatalf("output = %q, want supported files only in lexical order", output)
+	}
+}
+
+func TestRunDirectoryWithoutSupportedConfigurationsSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a config"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{dir}, strings.NewReader(""), &stdout, &stderr, app.New(analyzer.NewEngine()), input.OpenFile)
+	if code != 0 || stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("exit code = %d, stdout = %q, stderr = %q", code, stdout.String(), stderr.String())
 	}
 }
 
@@ -113,7 +162,7 @@ func TestRunReturnsFindingExitCodeUnlessSilent(t *testing.T) {
 			if code != test.want {
 				t.Fatalf("exit code = %d, want %d; stderr = %q", code, test.want, stderr.String())
 			}
-			if !strings.Contains(stdout.String(), "HIGH [test-rule] service.password: test finding Recommendation: fix it") {
+			if !strings.Contains(stdout.String(), "stdin: HIGH [test-rule] service.password: test finding Recommendation: fix it") {
 				t.Fatalf("output = %q, want formatted finding", stdout.String())
 			}
 		})
