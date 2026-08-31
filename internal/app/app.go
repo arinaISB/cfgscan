@@ -15,6 +15,16 @@ type Service struct {
 	analyzer analyzer.Analyzer
 }
 
+// ParseError reports that a configuration could not be parsed.
+// It lets transports distinguish invalid input from analysis failures.
+type ParseError struct {
+	err error
+}
+
+func (e *ParseError) Error() string { return e.err.Error() }
+
+func (e *ParseError) Unwrap() error { return e.err }
+
 func New(a analyzer.Analyzer) Service {
 	return Service{analyzer: a}
 }
@@ -31,7 +41,7 @@ func (s Service) Analyze(ctx context.Context, input io.Reader) ([]analyzer.Probl
 	}
 	document, err := parser.Parse(data)
 	if err != nil {
-		return nil, err
+		return nil, &ParseError{err: err}
 	}
 	return s.analyzer.Analyze(ctx, document)
 }

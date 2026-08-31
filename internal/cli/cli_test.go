@@ -37,6 +37,7 @@ func TestParseFlags(t *testing.T) {
 		{name: "short silent", args: []string{"-s", "config.yaml"}, want: options{silent: true, path: "config.yaml"}},
 		{name: "long silent", args: []string{"--silent", "config.yaml"}, want: options{silent: true, path: "config.yaml"}},
 		{name: "stdin", args: []string{"--stdin"}, want: options{stdin: true}},
+		{name: "HTTP server", args: []string{"--http-addr", ":8080"}, want: options{httpAddr: ":8080", httpServer: true}},
 	}
 
 	for _, test := range tests {
@@ -49,6 +50,19 @@ func TestParseFlags(t *testing.T) {
 				t.Fatalf("parse(%q) = %#v, want %#v", test.args, got, test.want)
 			}
 		})
+	}
+}
+
+func TestParseRejectsHTTPServerCombinations(t *testing.T) {
+	for _, args := range [][]string{
+		{"--http-addr", ":8080", "config.yaml"},
+		{"--http-addr", ":8080", "--stdin"},
+		{"--http-addr", ":8080", "--silent"},
+		{"--http-addr", ":8080", "-s"},
+	} {
+		if _, err := parse(args); err == nil {
+			t.Fatalf("parse(%q) succeeded, want usage error", args)
+		}
 	}
 }
 

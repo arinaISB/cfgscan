@@ -19,12 +19,12 @@ const (
 // Problem is a security finding produced by an Analyzer.
 type Problem struct {
 	// Source identifies the input from which this finding was obtained.
-	Source         string
-	RuleID         string
-	Severity       Severity
-	Path           string
-	Message        string
-	Recommendation string
+	Source         string   `json:"source"`
+	RuleID         string   `json:"rule_id"`
+	Severity       Severity `json:"severity"`
+	Path           string   `json:"path"`
+	Message        string   `json:"message"`
+	Recommendation string   `json:"recommendation"`
 }
 
 // Analyzer analyzes a parsed configuration document.
