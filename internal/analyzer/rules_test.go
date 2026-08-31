@@ -56,19 +56,21 @@ func TestRulesDetectExpectedConfiguration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			problems, err := test.rule.Check(context.Background(), test.document)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(problems) != 1 {
-				t.Fatalf("findings = %#v, want one", problems)
-			}
-			problem := problems[0]
-			if problem.RuleID != test.rule.ID() || problem.Path != test.wantPath || problem.Severity != test.wantSeverity {
-				t.Fatalf("problem = %#v", problem)
-			}
-		})
+		t.Run(
+			test.name, func(t *testing.T) {
+				problems, err := test.rule.Check(context.Background(), test.document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(problems) != 1 {
+					t.Fatalf("findings = %#v, want one", problems)
+				}
+				problem := problems[0]
+				if problem.RuleID != test.rule.ID() || problem.Path != test.wantPath || problem.Severity != test.wantSeverity {
+					t.Fatalf("problem = %#v", problem)
+				}
+			},
+		)
 	}
 }
 
@@ -78,36 +80,70 @@ func TestRulesIgnoreSafeConfiguration(t *testing.T) {
 		rule     Rule
 		document parser.Document
 	}{
-		{name: "non-logging level", rule: DebugLoggingRule{}, document: parser.Document{Value: map[string]any{"feature": map[string]any{"level": "debug"}}}},
-		{name: "login level", rule: DebugLoggingRule{}, document: parser.Document{Value: map[string]any{"login": map[string]any{"level": "debug"}}}},
-		{name: "logic level", rule: DebugLoggingRule{}, document: parser.Document{Value: map[string]any{"logic": map[string]any{"level": "debug"}}}},
-		{name: "debug logging is not enabled", rule: DebugLoggingRule{}, document: parser.Document{Value: map[string]any{"log_level": "info"}}},
-		{name: "external password reference", rule: PlaintextPasswordRule{}, document: parser.Document{Value: map[string]any{"password": "${DATABASE_PASSWORD}", "api_token": "{{ secrets.token }}", "secret": ""}}},
-		{name: "restricted bind", rule: UnrestrictedBindRule{}, document: parser.Document{Value: map[string]any{"host": "127.0.0.1"}}},
-		{name: "enabled tls", rule: DisabledTLSRule{}, document: parser.Document{Value: map[string]any{"tls": true, "tls_enabled": true, "insecure_skip_verify": false}}},
-		{name: "modern algorithm", rule: WeakAlgorithmRule{}, document: parser.Document{Value: map[string]any{"hash_algorithm": "SHA-256", "cipher": "AES-GCM"}}},
+		{
+			name: "non-logging level", rule: DebugLoggingRule{},
+			document: parser.Document{Value: map[string]any{"feature": map[string]any{"level": "debug"}}},
+		},
+		{
+			name: "login level", rule: DebugLoggingRule{},
+			document: parser.Document{Value: map[string]any{"login": map[string]any{"level": "debug"}}},
+		},
+		{
+			name: "logic level", rule: DebugLoggingRule{},
+			document: parser.Document{Value: map[string]any{"logic": map[string]any{"level": "debug"}}},
+		},
+		{
+			name: "debug logging is not enabled", rule: DebugLoggingRule{},
+			document: parser.Document{Value: map[string]any{"log_level": "info"}},
+		},
+		{
+			name: "external password reference", rule: PlaintextPasswordRule{}, document: parser.Document{
+				Value: map[string]any{
+					"password": "${DATABASE_PASSWORD}", "api_token": "{{ secrets.token }}", "secret": "",
+				},
+			},
+		},
+		{
+			name: "restricted bind", rule: UnrestrictedBindRule{},
+			document: parser.Document{Value: map[string]any{"host": "127.0.0.1"}},
+		},
+		{
+			name: "enabled tls", rule: DisabledTLSRule{}, document: parser.Document{
+				Value: map[string]any{
+					"tls": true, "tls_enabled": true, "insecure_skip_verify": false,
+				},
+			},
+		},
+		{
+			name: "modern algorithm", rule: WeakAlgorithmRule{},
+			document: parser.Document{Value: map[string]any{"hash_algorithm": "SHA-256", "cipher": "AES-GCM"}},
+		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			problems, err := test.rule.Check(context.Background(), test.document)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(problems) != 0 {
-				t.Fatalf("findings = %#v, want none", problems)
-			}
-		})
+		t.Run(
+			test.name, func(t *testing.T) {
+				problems, err := test.rule.Check(context.Background(), test.document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(problems) != 0 {
+					t.Fatalf("findings = %#v, want none", problems)
+				}
+			},
+		)
 	}
 }
 
 func TestEngineCombinesFindings(t *testing.T) {
 	engine := NewEngine(DefaultRules()...)
-	document := parser.Document{Value: map[string]any{
-		"logging":  map[string]any{"level": "debug"},
-		"database": map[string]any{"password": "literal", "host": "0.0.0.0"},
-		"client":   map[string]any{"tls_verify": false, "hash_algorithm": "MD5"},
-	}}
+	document := parser.Document{
+		Value: map[string]any{
+			"logging":  map[string]any{"level": "debug"},
+			"database": map[string]any{"password": "literal", "host": "0.0.0.0"},
+			"client":   map[string]any{"tls_verify": false, "hash_algorithm": "MD5"},
+		},
+	}
 
 	problems, err := engine.Analyze(context.Background(), document)
 	if err != nil {

@@ -27,22 +27,24 @@ func Files(path string) ([]string, error) {
 	}
 
 	var files []string
-	err = filepath.WalkDir(path, func(current string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			if entry.IsDir() {
-				return filepath.SkipDir
+	err = filepath.WalkDir(
+		path, func(current string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
 			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				if entry.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if entry.IsDir() || !entry.Type().IsRegular() || !supported(current) {
+				return nil
+			}
+			files = append(files, current)
 			return nil
-		}
-		if entry.IsDir() || !entry.Type().IsRegular() || !supported(current) {
-			return nil
-		}
-		files = append(files, current)
-		return nil
-	})
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("walk configuration directory %q: %w", path, err)
 	}

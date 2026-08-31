@@ -48,14 +48,16 @@ func (s *Server) Analyze(ctx context.Context, request *cfgscanv1.AnalyzeRequest)
 
 	response := &cfgscanv1.AnalyzeResponse{Problems: make([]*cfgscanv1.Problem, 0, len(problems))}
 	for _, problem := range problems {
-		response.Problems = append(response.Problems, &cfgscanv1.Problem{
-			Source:         "request",
-			RuleId:         problem.RuleID,
-			Severity:       string(problem.Severity),
-			Path:           problem.Path,
-			Message:        problem.Message,
-			Recommendation: problem.Recommendation,
-		})
+		response.Problems = append(
+			response.Problems, &cfgscanv1.Problem{
+				Source:         "request",
+				RuleId:         problem.RuleID,
+				Severity:       string(problem.Severity),
+				Path:           problem.Path,
+				Message:        problem.Message,
+				Recommendation: problem.Recommendation,
+			},
+		)
 	}
 	return response, nil
 }

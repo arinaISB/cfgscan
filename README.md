@@ -1,32 +1,49 @@
 # cfgscan
 
-`scanner` is a command-line tool for detecting potentially insecure settings in
-web-application configurations.
+`scanner` — инструмент командной строки для обнаружения потенциально небезопасных
+настроек в конфигурациях web applications.
 
-## Supported input
+## Требования
 
-- JSON and YAML configuration documents;
-- one document per input stream (multiple YAML documents are not supported);
-- a configuration file, a recursively scanned directory, or standard input. Format is determined by parsing,
-  so `--stdin` does not require a filename or extension.
+- Go 1.25 или новее.
 
-When a directory is supplied, only regular `.json`, `.yaml`, and `.yml` files
-are scanned recursively, in lexicographic path order. Symbolic links are not
-followed or scanned; an explicitly supplied symbolic-link path is rejected.
+## Быстрый старт
 
-## Checks
+```sh
+go test ./...
+go build -o scanner ./cmd/scanner
+./scanner config.yaml
+```
 
-- `debug-logging` — `LOW`: debug logging is enabled;
-- `plaintext-password` — `HIGH`: a literal password, secret, or token is stored in configuration;
-- `unrestricted-bind` — `MEDIUM`: a service binds to `0.0.0.0`;
-- `disabled-tls` — `HIGH`: TLS or certificate verification is explicitly disabled;
-- `weak-algorithm` — `HIGH`: MD5, SHA-1, DES/3DES, or RC4 is configured.
-- `insecure-file-permissions` — Unix permission-bit check for file input: group
-  or world writable is `HIGH`; group or world readable (without write access) is
-  `MEDIUM`. Restricted permissions produce no finding; `0600` is a typical safe
-  minimum for secret-bearing configuration files.
+## Архитектура
 
-## Usage
+Потоки CLI, HTTP и gRPC передают конфигурацию в `app`, затем в `parser`, после
+чего `analyzer` применяет набор `rules`: `CLI/HTTP/gRPC → app → parser → analyzer/rules`.
+
+## Поддерживаемый вход
+
+- Документы конфигурации JSON и YAML;
+- один документ на входной поток (несколько документов YAML не поддерживаются);
+- файл конфигурации, рекурсивно сканируемый каталог или standard input. Формат определяется при parsing,
+  поэтому для `--stdin` не нужны имя файла или расширение.
+
+При указании каталога рекурсивно сканируются только обычные файлы `.json`,
+`.yaml` и `.yml` в лексикографическом порядке путей. Symbolic links не
+обходятся и не сканируются; явно переданный путь symbolic link отклоняется.
+
+## Проверки
+
+- `debug-logging` — `LOW`: включено debug logging;
+- `plaintext-password` — `HIGH`: в конфигурации хранится literal password, secret или token;
+- `unrestricted-bind` — `MEDIUM`: service привязывается к `0.0.0.0`;
+- `disabled-tls` — `HIGH`: TLS или certificate verification явно отключены;
+- `weak-algorithm` — `HIGH`: настроены MD5, SHA-1, DES/3DES или RC4.
+- `insecure-file-permissions` — проверка Unix permission bits для файла: права
+  group или world writable имеют уровень `HIGH`; group или world readable (без
+  write access) — `MEDIUM`. Ограниченные permissions не создают finding; `0600`
+  — типичный безопасный минимум для файлов конфигурации с secret values.
+
+## Использование
 
 ```sh
 scanner config.yaml
@@ -37,23 +54,23 @@ scanner --http-addr :8080
 scanner --grpc-addr :9090
 ```
 
-`--stdin` reads the document from standard input. `-s` and `--silent` still
-print findings, but return success when findings are the only issue.
+`--stdin` читает документ из standard input. `-s` и `--silent` по-прежнему
+выводят findings, но возвращают успех, если findings — единственная проблема.
 
 ```text
 configs/prod.yaml: HIGH [plaintext-password] database.password: a literal secret is stored in the configuration Recommendation: Load this value from a secret manager or an environment variable.
 configs/prod.yaml: MEDIUM [insecure-file-permissions] permissions: configuration file is readable by group or other users Recommendation: Restrict this configuration file to the minimum necessary permissions, for example 0600.
 ```
 
-Exit codes:
+Коды завершения:
 
-- `0` — no findings, or findings were suppressed with `-s` / `--silent`;
-- `1` — findings were detected, or reading, parsing, or analysis failed;
-- `2` — command-line usage error.
+- `0` — findings отсутствуют или были подавлены с помощью `-s` / `--silent`;
+- `1` — обнаружены findings либо произошла ошибка чтения, parsing или analysis;
+- `2` — ошибка использования command line.
 
 ## HTTP API
 
-Start the API server instead of a CLI analysis with `--http-addr`:
+Запустите API server вместо CLI analysis с помощью `--http-addr`:
 
 ```sh
 scanner --http-addr :8080
@@ -61,34 +78,37 @@ curl -X POST http://localhost:8080/v1/analyze \
   --data-binary $'database:\n  password: literal-password\n'
 ```
 
-`POST /v1/analyze` accepts one raw JSON or YAML configuration document. The
-request Content-Type may be `application/json`, `application/yaml`, `text/yaml`,
-or omitted; the existing parser determines the format. Responses are JSON:
+Endpoint `POST /v1/analyze` принимает один raw JSON или YAML configuration document.
+Request Content-Type может быть `application/json`, `application/yaml`, `text/yaml`
+или отсутствовать; формат определяет существующий parser. Responses — JSON:
 
 ```json
 {"problems":[{"source":"request","rule_id":"plaintext-password","severity":"HIGH","path":"database.password","message":"a literal secret is stored in the configuration","recommendation":"Load this value from a secret manager or an environment variable."}]}
 ```
 
-The endpoint returns `200 OK` for every successfully analyzed document,
-including documents with findings. It returns `400 Bad Request` for an empty or
-invalid document, `413 Request Entity Too Large` for bodies over 1 MiB, `405
-Method Not Allowed` (with `Allow: POST`) for other methods, `404 Not Found` for
-other paths, and `500 Internal Server Error` for analysis failures. Error bodies
-are JSON in the form `{"error":"..."}`.
+Endpoint возвращает `200 OK` для каждого успешно проанализированного документа,
+включая документы с findings. Для пустого или invalid document возвращается
+`400 Bad Request`, для body более 1 MiB — `413 Request Entity Too Large`, для
+других methods — `405 Method Not Allowed` (с `Allow: POST`), для других paths —
+`404 Not Found`, а при ошибке analysis — `500 Internal Server Error`. Error bodies
+имеют JSON-форму `{"error":"..."}`.
+
+HTTP API запускается без TLS и authentication и предназначен для local development
+и demonstration.
 
 ## gRPC API
 
-Start the gRPC API server instead of CLI or HTTP analysis:
+Запустите gRPC API server вместо CLI или HTTP analysis:
 
 ```sh
 scanner --grpc-addr :9090
 ```
 
-The unary `cfgscan.v1.Scanner/Analyze` endpoint accepts an `AnalyzeRequest`
-whose `configuration` field is the raw JSON or YAML document. It returns an
-`AnalyzeResponse` with `problems`; each problem has source, rule ID, severity,
-path, message, and recommendation. Successful requests return findings in the
-response (rather than a gRPC error), with `source` set to `request`.
+Unary endpoint `cfgscan.v1.Scanner/Analyze` принимает `AnalyzeRequest`, в котором
+field `configuration` содержит raw JSON или YAML document. Он возвращает
+`AnalyzeResponse` с `problems`; у каждой problem есть source, rule ID, severity,
+path, message и recommendation. Успешные requests возвращают findings в response
+(а не gRPC error), при этом `source` имеет значение `request`.
 
 ```sh
 grpcurl -plaintext \
@@ -98,11 +118,21 @@ grpcurl -plaintext \
   localhost:9090 cfgscan.v1.Scanner/Analyze
 ```
 
-Empty or invalid configurations return `InvalidArgument`; requests whose
-configuration exceeds 1 MiB return `ResourceExhausted`; analysis failures
-return `Internal`.
+Пустые или invalid configurations возвращают `InvalidArgument`; requests, у которых
+configuration превышает 1 MiB, возвращают `ResourceExhausted`; ошибки analysis
+возвращают `Internal`.
 
-Regenerate the committed Go protobuf files with:
+gRPC API запускается без TLS и authentication и предназначен для local development
+и demonstration.
+
+## Как добавить новое правило
+
+1. Создайте тип правила в пакете `internal/analyzer`.
+2. Реализуйте интерфейс `Rule`: методы `ID()` и `Check(context.Context, parser.Document)`.
+3. В `Check` верните найденные `Problem` с нужными severity, path, message и recommendation.
+4. Добавьте экземпляр правила в `DefaultRules` и покройте его tests.
+
+Чтобы заново сгенерировать закоммиченные Go protobuf files, выполните:
 
 ```sh
 PATH="/Users/arina/go/bin:$PATH" protoc \

@@ -220,9 +220,15 @@ var (
 )
 
 func file_cfgscan_v1_scanner_proto_rawDescGZIP() []byte {
-	file_cfgscan_v1_scanner_proto_rawDescOnce.Do(func() {
-		file_cfgscan_v1_scanner_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_cfgscan_v1_scanner_proto_rawDesc), len(file_cfgscan_v1_scanner_proto_rawDesc)))
-	})
+	file_cfgscan_v1_scanner_proto_rawDescOnce.Do(
+		func() {
+			file_cfgscan_v1_scanner_proto_rawDescData = protoimpl.X.CompressGZIP(
+				unsafe.Slice(
+					unsafe.StringData(file_cfgscan_v1_scanner_proto_rawDesc), len(file_cfgscan_v1_scanner_proto_rawDesc),
+				),
+			)
+		},
+	)
 	return file_cfgscan_v1_scanner_proto_rawDescData
 }
 
@@ -252,7 +258,9 @@ func file_cfgscan_v1_scanner_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cfgscan_v1_scanner_proto_rawDesc), len(file_cfgscan_v1_scanner_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(
+				unsafe.StringData(file_cfgscan_v1_scanner_proto_rawDesc), len(file_cfgscan_v1_scanner_proto_rawDesc),
+			),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
