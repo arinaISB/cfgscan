@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 
+	"cfgscan/internal/analyzer"
 	"cfgscan/internal/app"
+	"cfgscan/internal/filescan"
 	"cfgscan/internal/input"
 )
 
@@ -31,29 +33,62 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return 2
 	}
 
-	var source input.Source
-	var closeSource io.Closer
 	if opts.stdin {
-		source = input.Source{Name: "stdin", Reader: stdin}
-	} else {
-		source, closeSource, err = openFile(opts.path)
+		problems, err := service.Analyze(ctx, stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "analyze stdin: %v\n", err)
+			return 1
+		}
+		return writeProblems(stdout, problems, "stdin", opts.silent)
+	}
+
+	paths, err := filescan.Files(opts.path)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	allProblems := make([]analyzer.Problem, 0)
+	for _, path := range paths {
+		source, closeSource, err := openFile(path)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		defer closeSource.Close()
+		problems, analyzeErr := service.Analyze(ctx, source.Reader)
+		closeErr := closeSource.Close()
+		if analyzeErr != nil {
+			fmt.Fprintf(stderr, "analyze %s: %v\n", path, analyzeErr)
+			return 1
+		}
+		if closeErr != nil {
+			fmt.Fprintf(stderr, "close configuration file %q: %v\n", path, closeErr)
+			return 1
+		}
+		for index := range problems {
+			problems[index].Source = path
+		}
+		allProblems = append(allProblems, problems...)
+		permission, permissionErr := filescan.PermissionProblem(path)
+		if permissionErr != nil {
+			fmt.Fprintln(stderr, permissionErr)
+			return 1
+		}
+		if permission != nil {
+			allProblems = append(allProblems, *permission)
+		}
 	}
+	return writeProblems(stdout, allProblems, "", opts.silent)
+}
 
-	problems, err := service.Analyze(ctx, source.Reader)
-	if err != nil {
-		fmt.Fprintf(stderr, "analyze %s: %v\n", source.Name, err)
-		return 1
-	}
-
+func writeProblems(stdout io.Writer, problems []analyzer.Problem, defaultSource string, silent bool) int {
 	for _, problem := range problems {
-		fmt.Fprintf(stdout, "%s [%s] %s: %s Recommendation: %s\n", problem.Severity, problem.RuleID, problem.Path, problem.Message, problem.Recommendation)
+		source := problem.Source
+		if source == "" {
+			source = defaultSource
+		}
+		fmt.Fprintf(stdout, "%s: %s [%s] %s: %s Recommendation: %s\n", source, problem.Severity, problem.RuleID, problem.Path, problem.Message, problem.Recommendation)
 	}
-	if len(problems) > 0 && !opts.silent {
+	if len(problems) > 0 && !silent {
 		return 1
 	}
 	return 0

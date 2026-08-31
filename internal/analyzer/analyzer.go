@@ -18,6 +18,8 @@ const (
 
 // Problem is a security finding produced by an Analyzer.
 type Problem struct {
+	// Source identifies the input from which this finding was obtained.
+	Source         string
 	RuleID         string
 	Severity       Severity
 	Path           string
