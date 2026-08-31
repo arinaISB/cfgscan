@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package cfgscan.v1;
+
+option go_package = "cfgscan/api/gen/cfgscan/v1;cfgscanv1";
+
+service Scanner {
+  rpc Analyze(AnalyzeRequest) returns (AnalyzeResponse);
+}
+
+message AnalyzeRequest {
+  // Configuration is the raw JSON or YAML document to analyze.
+  string configuration = 1;
+}
+
+message AnalyzeResponse {
+  repeated Problem problems = 1;
+}
+
+message Problem {
+  string source = 1;
+  string rule_id = 2;
+  string severity = 3;
+  string path = 4;
+  string message = 5;
+  string recommendation = 6;
+}

@@ -34,6 +34,7 @@ scanner configs/
 scanner --stdin < config.yaml
 scanner --silent config.yaml
 scanner --http-addr :8080
+scanner --grpc-addr :9090
 ```
 
 `--stdin` reads the document from standard input. `-s` and `--silent` still
@@ -74,3 +75,39 @@ invalid document, `413 Request Entity Too Large` for bodies over 1 MiB, `405
 Method Not Allowed` (with `Allow: POST`) for other methods, `404 Not Found` for
 other paths, and `500 Internal Server Error` for analysis failures. Error bodies
 are JSON in the form `{"error":"..."}`.
+
+## gRPC API
+
+Start the gRPC API server instead of CLI or HTTP analysis:
+
+```sh
+scanner --grpc-addr :9090
+```
+
+The unary `cfgscan.v1.Scanner/Analyze` endpoint accepts an `AnalyzeRequest`
+whose `configuration` field is the raw JSON or YAML document. It returns an
+`AnalyzeResponse` with `problems`; each problem has source, rule ID, severity,
+path, message, and recommendation. Successful requests return findings in the
+response (rather than a gRPC error), with `source` set to `request`.
+
+```sh
+grpcurl -plaintext \
+  -import-path api/proto \
+  -proto cfgscan/v1/scanner.proto \
+  -d '{"configuration":"database:\\n  password: literal-password\\n"}' \
+  localhost:9090 cfgscan.v1.Scanner/Analyze
+```
+
+Empty or invalid configurations return `InvalidArgument`; requests whose
+configuration exceeds 1 MiB return `ResourceExhausted`; analysis failures
+return `Internal`.
+
+Regenerate the committed Go protobuf files with:
+
+```sh
+PATH="/Users/arina/go/bin:$PATH" protoc \
+  --proto_path=api/proto \
+  --go_out=paths=source_relative:api/gen \
+  --go-grpc_out=paths=source_relative:api/gen \
+  api/proto/cfgscan/v1/scanner.proto
+```
