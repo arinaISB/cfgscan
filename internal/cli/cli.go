@@ -7,19 +7,23 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 
 	"cfgscan/internal/analyzer"
 	"cfgscan/internal/app"
 	"cfgscan/internal/filescan"
+	"cfgscan/internal/httpapi"
 	"cfgscan/internal/input"
 )
 
-const usage = "usage: scanner [-s|--silent] [--stdin] <config-file>"
+const usage = "usage: scanner [--http-addr <address> | [-s|--silent] (--stdin | <config-file>)]"
 
 type options struct {
-	silent bool
-	stdin  bool
-	path   string
+	silent     bool
+	stdin      bool
+	path       string
+	httpAddr   string
+	httpServer bool
 }
 
 type openFileFunc func(string) (input.Source, io.Closer, error)
@@ -31,6 +35,13 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		fmt.Fprintln(stderr, err)
 		fmt.Fprintln(stderr, usage)
 		return 2
+	}
+	if opts.httpServer {
+		if err := http.ListenAndServe(opts.httpAddr, httpapi.NewHandler(service)); err != nil {
+			fmt.Fprintf(stderr, "serve HTTP API: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 
 	if opts.stdin {
@@ -101,11 +112,26 @@ func parse(args []string) (options, error) {
 	flags.BoolVar(&opts.silent, "s", false, "suppress a non-zero exit code for findings")
 	flags.BoolVar(&opts.silent, "silent", false, "suppress a non-zero exit code for findings")
 	flags.BoolVar(&opts.stdin, "stdin", false, "read configuration from standard input")
+	flags.StringVar(&opts.httpAddr, "http-addr", "", "serve the HTTP API on this address")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "http-addr" {
+			opts.httpServer = true
+		}
+	})
 	remaining := flags.Args()
+	if opts.httpServer {
+		if opts.httpAddr == "" {
+			return options{}, errors.New("--http-addr requires an address")
+		}
+		if opts.stdin || opts.silent || len(remaining) != 0 {
+			return options{}, errors.New("--http-addr cannot be used with a configuration path, --stdin, -s, or --silent")
+		}
+		return opts, nil
+	}
 	if opts.stdin {
 		if len(remaining) != 0 {
 			return options{}, errors.New("a configuration path cannot be used with --stdin")
